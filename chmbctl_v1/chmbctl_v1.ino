@@ -1,3 +1,13 @@
+//User definable parameters
+  //program control
+  //0 = Tsoil control
+  //1 = vpd control
+  //2 = Tair control
+  int hotbox_ctl = 1;
+  float vpdSet = 1.0; //(kPa)
+  int tempSet = 0; // although this can be changed initially, i typically leave it blank because the code will change this once is reads the current air temperature of the chamber
+
+
 //wiring
   //3.3V - I2C hub, 
   //GND
@@ -29,13 +39,9 @@
   #include <Adafruit_I2CRegister.h>
 
 //global control variables
-  //program control
-  //0 = Tsoil control
-  //1 = vpd control
-  int hotbox_ctl = 1;
+
 
   //VPD control parameters
-  float vpdSet = 1.0; //(kPa)
   bool vpdRun = true;
   float vpdInc = 0.1; //VPD increase (kPa)
   int vpdTimeInc = 100; //VPD increase time interval (min)
@@ -43,14 +49,13 @@
   float vpdMin = 5; // max VPD (kPa)
 
   //Tair control parameters
-  int tempSet = 0;
   int TempInc = 1; //temperature increase (Celsius)
   int TimeInc = 1; //time interval (minutes) for temperature increases
   int TairMax = 25; // max temperature (Celsius)
   int TsoilMax = 65;
   int TempTimeMax = 240; //the number of minutes tempearture is held (minutes)
   //vpd variables
-  
+
   bool run = true;
 
 //time interval variables
@@ -419,15 +424,24 @@ void recvWithEndMarker() {
 void showNewData() {
  if (newData == true) {
   strRecv = String(receivedChars);
-  vpdSet = strRecv.toFloat();
-  Serial.println();
-  Serial.println();
- Serial.print("This just in ... ");
- Serial.println(receivedChars);
- set_vpdSet(vpdSet);
- Serial.println(vpdSet);
- Serial.println();
-  Serial.println();
+  String firstThree = strRecv.substring(0,3);
+  String firstFour = strRecv.substring(0,4);
+  Serial.print("This just in ... ");
+  Serial.println(receivedChars);
+  if(firstThree == "vpd"){
+    Serial.print("new vpd set point = ");
+    Serial.println(strRecv.substring(4,strRecv.length()));
+    strFloat = strRecv.toFloat();
+    set_vpdSet(strFloat);
+  }else if(firstFour == "Tair"){
+    Serial.print("new Tair setting = ");
+    Serial.println(strRecv.substring(5,strRecv.length()));
+    strFloat = strRecv.toFloat();
+    set_tempSet(strFloat);
+  }else{
+    Serial.println("serial input incorrect");
+  }
+
  newData = false;
  }
 }
