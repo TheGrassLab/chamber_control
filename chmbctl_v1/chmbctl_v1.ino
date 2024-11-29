@@ -6,6 +6,7 @@
   int hotbox_ctl = 1;
   float vpdSet = 1.0; //(kPa)
   int tempSet = 0; // although this can be changed initially, i typically leave it blank because the code will change this once is reads the current air temperature of the chamber
+  int tsoilSet = 0;
 
 
 //wiring
@@ -260,6 +261,7 @@ float Tread(byte xpin){
 
 //setter functions
   int set_tempSet(int x){tempSet = x; return tempSet;}
+  int set_tsoilSet(int x){tsoilSet = x; return tempSet;}
   float set_Tair(float x){Tair = x; return Tair;}
   float set_vpd(float x){vpd = x; return vpd;}
   float set_vpdd(float x){vpdd = x; return vpdd;}
@@ -274,48 +276,48 @@ float Tread(byte xpin){
 void TsoilCTL(){
 //set initial tempSet
 
-  if (tempSet == 0){ // set at 0 initially
-    tempSet = Tair+1; // set the temperature to 1 degree above the integer of room temperature
+  if (tsoilSet == 0){ // set at 0 initially
+    tsoilSet = Tair+1; // set the temperature to 1 degree above the integer of room temperature
   }
 
-  if (tempSet < TairMax){
+  if (tsoilSet < TairMax){
 
     //Changes tempSet and updates time arrays if conditions are met
     if(counter >= (TimeInc*60)){ 
       counter = 1;
-      tempSet += TempInc;
+      tsoilSet += TempInc;
       Serial.println(); Serial.println();Serial.println();
-      Serial.print("New tempSet is:  ");Serial.println(tempSet);
+      Serial.print("New tempSet is:  ");Serial.println(tsoilSet);
       Serial.println(); Serial.println();Serial.println();
     }
     //determine upper/lower limits of temperature control
-    float Tdmin = -1*(1-(tempSet - Tref)/45);
+    float Tdmin = -1*(1-(tsoilSet - Tref)/45);
     float Tdmax = 0.2;
 
     VPDpid(pumpPin);
     Tpid(heatPin1);
     TimeRm = TimeInc*60 - counter;
-    TiTotalRm = (TairMax - tempSet) * (TimeInc*60) + (TempTimeMax*60);
+    TiTotalRm = (TairMax - tsoilSet) * (TimeInc*60) + (TempTimeMax*60);
 
-  }else if(tempSet == TairMax){
+  }else if(tsoilSet == TairMax){
       
       float tsoilmin = min(tsoil1,tsoil2);
       VPDpid(pumpPin);
       Tpid(heatPin1);
       TimeRm = TimeInc*60 - counter;
-      TiTotalRm = (TairMax - tempSet) * (TimeInc*60) + (TempTimeMax*60);
+      TiTotalRm = (TairMax - tsoilSet) * (TimeInc*60) + (TempTimeMax*60);
       if(tsoilmin >= TsoilMax){
         tempSet += TempInc;
       }
 
-  }else if (tempSet > TairMax){
+  }else if (tsoilSet > TairMax){
       digitalWrite(heatPin1, HIGH);
       digitalWrite(pumpPin,HIGH);
       TimeRm = 0;
       run = false;
       tempSet = 0;
   }
-  set_tempSet(tempSet);
+  set_tsoilSet(tsoilSet);
   set_run(run);
 }
 
@@ -398,51 +400,57 @@ void vpdCTL(){
 }
 
 void recvWithEndMarker() {
- static byte ndx = 0;
- char endMarker = '\n';
- char rc;
+  static byte ndx = 0;
+  char endMarker = '\n';
+  char rc;
  
  // if (Serial.available() > 0) {
-           while (Serial.available() > 0 && newData == false) {
- rc = Serial.read();
+  while (Serial.available() > 0 && newData == false) {
+    rc = Serial.read();
 
- if (rc != endMarker) {
- receivedChars[ndx] = rc;
- ndx++;
- if (ndx >= numChars) {
- ndx = numChars - 1;
- }
- }
- else {
- receivedChars[ndx] = '\0'; // terminate the string
- ndx = 0;
- newData = true;
- }
- }
+    if (rc != endMarker) {
+    receivedChars[ndx] = rc;
+    ndx++;
+    if (ndx >= numChars) {
+    ndx = numChars - 1;
+    }
+    }
+    else {
+    receivedChars[ndx] = '\0'; // terminate the string
+    ndx = 0;
+    newData = true;
+    }
+  }
 }
 
 void showNewData() {
  if (newData == true) {
   strRecv = String(receivedChars);
-  String firstThree = strRecv.substring(0,3);
-  String firstFour = strRecv.substring(0,4);
+  String firstFive = strRecv.substring(0,5);
   Serial.print("This just in ... ");
   Serial.println(receivedChars);
-  if(firstThree == "vpd"){
+
+  if(firstFive == "vpset"){
     Serial.print("new vpd set point = ");
-    Serial.println(strRecv.substring(4,strRecv.length()));
-    strFloat = strRecv.toFloat();
+    Serial.println(strRecv.substring(6,strRecv.length()));
+    float strFloat = strRecv.toFloat();
     set_vpdSet(strFloat);
-  }else if(firstFour == "Tair"){
+  }else if(firstFive == "Taset"){
     Serial.print("new Tair setting = ");
-    Serial.println(strRecv.substring(5,strRecv.length()));
-    strFloat = strRecv.toFloat();
+    Serial.println(strRecv.substring(6,strRecv.length()));
+    float strFloat = strRecv.toFloat();
     set_tempSet(strFloat);
+  }else if(firstFive == "Tsset"){
+    Serial.print("new Tsoil setting = ");
+    Serial.println(strRecv.substring(6,strRecv.length()));
+    float strFloat = strRecv.toFloat();
+    set_tsoilSet(strFloat);
   }else{
     Serial.println("serial input incorrect");
   }
 
- newData = false;
+  newData = false;
+
  }
 }
 
@@ -496,6 +504,9 @@ void loop() {
           break;
         case 1:
           vpdCTL();
+          break;
+        case 2:
+          TairCTL();
           break;
       }
     }
